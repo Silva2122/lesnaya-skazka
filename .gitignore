@@ -1,0 +1,12 @@
+# исходники и архивы — на сайте не используются
+ФОТО 2025/
+Сентябрь /
+*.zip
+media/v3.mp4
+Лесная сказка v3.dc.html
+support.js
+image-slot.js
+build.py
+main-logo.svg
+.DS_Store
+scratchpad/
