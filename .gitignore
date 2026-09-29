@@ -10,3 +10,10 @@ build.py
 main-logo.svg
 .DS_Store
 scratchpad/
+serve.mjs
+Use_the_provided_image_as_*.mp4
+*.mov
+belka_reference.png
+Squirrel_*.mp4
+IMG_*.PNG
+node_modules/

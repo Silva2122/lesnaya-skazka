@@ -3,13 +3,13 @@
 (function () {
   'use strict';
 
-  var D = '#103C1F', L = '#8ED968', W = '#F5F6F2';
+  var D = '#223020', L = '#F7EFE4', W = '#EEE4D3';
 
   var state = { view: 'genplan', house: 1, gallery: 'photo', chron: 'sep', sent: false };
 
   // таблетки-табы: светлые секции красятся bg/fg, тёмные — bgDark/fgDark
   var DARK_TABS = { view: true };
-  var PIN_IDLE = { photo: 'rgba(16,60,31,.6)', house: 'rgba(16,60,31,.65)' };
+  var PIN_IDLE = { photo: 'rgba(34,48,32,.6)', house: 'rgba(34,48,32,.65)' };
 
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
@@ -27,7 +27,7 @@
         cells.push({
           label: st === 'free' ? (1 + Math.floor(v * 7) % 3) + 'к' : '',
           title: st === 'free' ? 'Свободна' : st === 'hold' ? 'Бронь' : 'Продана',
-          bg: st === 'free' ? L : st === 'hold' ? '#C6E9AF' : 'rgba(245,246,242,.12)',
+          bg: st === 'free' ? L : st === 'hold' ? 'rgba(238,228,211,.45)' : 'rgba(238,228,211,.12)',
           cursor: st === 'free' ? 'pointer' : 'default'
         });
       }
@@ -359,7 +359,14 @@
   document.addEventListener('click', function (e) {
     var link = e.target.closest('[data-doc]');
     if (link) { e.preventDefault(); docOpen(link.getAttribute('data-doc')); return; }
-    if (e.target.closest('[data-callback]')) docOpen('tpl-callback', true);
+    var cb = e.target.closest('[data-callback]');
+    if (cb) {
+      docOpen('tpl-callback', true);
+      // контекст кнопки: у каждого блока свой заголовок и мотивация в форме
+      var h = doc.querySelector('.cb-head h3'), p = doc.querySelector('.cb-head .note');
+      if (h) h.textContent = cb.dataset.ctaTitle || 'Обратный звонок';
+      if (p) p.textContent = cb.dataset.ctaNote || 'Наш менеджер свяжется с вами в ближайшее время.';
+    }
   });
 
   // форма внутри попапа отправляется так же, как формы на странице
@@ -776,6 +783,253 @@
       WALK.slice(1).forEach(function (d) { new Image().src = d.img; });
     }, 1500);
   }
+
+  /* ------------------------------------------------------------ акции: белка */
+  // Белка в ролике обходит взглядом периметр по часовой: влево → вверх → вправо
+  // → вниз → влево, а в начале и в конце смотрит в камеру. Ролик нарезан на все
+  // 240 кадров (images/promo/NNN.webp), для каждого размечено, куда она смотрит
+  // (yaw: −1 влево … +1 вправо, pitch: −1 вниз … +1 вверх). Курсор задаёт только
+  // НАПРАВЛЕНИЕ от глаз белки — дальность не важна: на любом расстоянии в одну
+  // сторону она смотрит одинаково, в крайнее положение. Направление — это угол,
+  // а угол по таймлайну растёт монотонно, поэтому вслед за курсором голова едет
+  // по кадрам без объездов. Единственный шов — «влево» (там кольцо угла
+  // замыкается между кадрами ~36 и ~188): его проходим коротким перекрытием.
+  function promoSquirrel() {
+    var stage = document.querySelector('[data-promo]');
+    if (!stage) return;
+    var cv = stage.querySelector('.promo-look');
+    var ctx = cv && cv.getContext ? cv.getContext('2d') : null;
+    if (!ctx) return;
+    var media = stage.querySelector('.promo-media');
+    var mq = window.matchMedia;
+    var reduced = mq && mq('(prefers-reduced-motion: reduce)').matches;
+    var coarse = mq && mq('(pointer: coarse)').matches;
+
+    var N = 240;
+    var HOME = 216;                         // анфас — стартовый кадр
+    var EYE_X = 0.58, EYE_Y = 0.32;         // где на кадре глаза белки
+    var DEAD = 28;                          // ближе этого к глазам направление не читаем
+
+    var KEYS = [
+      [0,.25,-.05],[4,.15,0],[8,0,0],[12,-.05,0],[14,-.1,0],[16,-.2,0],[18,-.3,0],[20,-.45,-.05],
+      [22,-.6,-.1],[24,-.7,-.1],[26,-.75,-.08],[28,-.8,-.05],[30,-.85,0],[34,-.9,.05],[36,-.9,.1],
+      [38,-.9,.15],[40,-.9,.2],[42,-.85,.3],[44,-.75,.45],[46,-.6,.6],[48,-.45,.7],[50,-.35,.8],
+      [52,-.25,.88],[54,-.15,.95],[56,-.05,1],[60,.05,1],[64,.1,1],[68,.2,.95],[72,.2,.95],
+      [76,.1,.9],[80,-.1,.9],[84,-.15,.85],[86,-.1,.85],[88,.25,.75],[90,.55,.6],[92,.8,.45],
+      [94,.9,.35],[96,1,.3],[98,1,.2],[100,1,.15],[102,1,.1],[104,1,.05],[106,1,0],[108,1,0],
+      [110,1,-.05],[112,.95,-.05],[114,.95,-.08],[116,.9,-.1],[118,.85,-.1],[120,.8,-.12],
+      [122,.75,-.15],[124,.7,-.18],[126,.65,-.2],[128,.55,-.22],[130,.45,-.25],[132,.4,-.28],
+      [134,.3,-.3],[136,.25,-.32],[138,.2,-.35],[140,.12,-.38],[142,.08,-.4],[144,.03,-.4],
+      [146,-.03,-.4],[152,-.15,-.4],[156,-.3,-.35],[160,-.45,-.35],[164,-.55,-.35],[168,-.65,-.3],
+      [172,-.75,-.25],[176,-.8,-.2],[180,-.85,-.1],[184,-.85,-.05],[188,-.85,0],[190,-.85,-.02],
+      [192,-.8,0],[194,-.75,0],[196,-.65,0],[198,-.55,0],[200,-.45,0],[202,-.3,0],[204,-.18,0],
+      [206,-.08,0],[208,0,0],[220,0,0],[224,.05,.05],[236,.05,.05],[239,.05,0]
+    ];
+    var YAW = [], PITCH = [];
+    for (var k = 0; k < KEYS.length - 1; k++) {
+      var a = KEYS[k], b = KEYS[k + 1];
+      for (var f = a[0]; f < b[0]; f++) {
+        var t = (f - a[0]) / (b[0] - a[0]);
+        YAW[f] = a[1] + (b[1] - a[1]) * t;
+        PITCH[f] = a[2] + (b[2] - a[2]) * t;
+      }
+    }
+    YAW[N - 1] = KEYS[KEYS.length - 1][1]; PITCH[N - 1] = KEYS[KEYS.length - 1][2];
+    // периметр — дуга кадров 32…190: угол взгляда по ней растёт монотонно на все
+    // 360°. Концы дуги (32 и 190) — оба «влево», подобраны так, чтобы на шве
+    // совпадало направление взгляда, а перекрытие прятало смещение головы
+    var A0 = 32, A1 = 190, SEAM = 60;
+    // Шов проходим не перекрытием двух разных поз, а через камеру: с обеих
+    // сторон шва ролик возвращается в анфас (32→8 и 190→232), а кадры 8 и 232 —
+    // почти одинаковые анфасы, их подмена не видна. Получается короткий взгляд
+    // в камеру — настоящее движение, а не склейка.
+    var HUB_LO = 8, HUB_HI = 232, MID = 110;
+    var ARC = [], ANG = [];
+    for (var i = A0; i <= A1; i++) { ARC.push(i); ANG[i] = Math.atan2(PITCH[i], YAW[i]); }
+    var via = null;                         // план перехода через камеру: {hub, other, side}
+
+    var imgs = [], have = 0;
+    var mx = null, my = null;
+    var sx = 0, sy = 0;                     // сглаженное направление на курсор (вектор)
+    var cur = HOME, goal = HOME, drawn = -1, lastT = 0;
+    var px = 0, py = 0;                     // лёгкий доворот кадра вслед за курсором
+    var armed = false, live = false, raf = 0;
+    var fade = null;                        // перекрытие: {a, b, t0, dur}
+
+    function near(pad) {
+      var r = stage.getBoundingClientRect();
+      if (!r.width) return false;
+      var vh = window.innerHeight || 800;
+      return r.bottom > -pad && r.top < vh + pad;
+    }
+
+    // кадры тянем только когда блок близко к экрану (7,4 МБ): сначала анфас,
+    // потом чётные по удалённости от него (белка оживает рано и уже крутится),
+    // нечётные докачиваются следом и сглаживают ход
+    function arm() {
+      if (armed || reduced || !near(1200)) return;
+      armed = true;
+      var order = [];
+      for (var i = 0; i < N; i++) order.push(i);
+      order.sort(function (p, q) {
+        if (p % 2 !== q % 2) return p % 2 - q % 2;
+        return Math.abs(p - HOME) - Math.abs(q - HOME);
+      });
+      var next = 0, busy = 0;
+      function pump() {
+        while (busy < 4 && next < order.length) {
+          (function (slot) {
+            busy++;
+            var im = new Image();
+            im.decoding = 'async';
+            var done = function (ok) {
+              busy--;
+              if (ok) {
+                imgs[slot] = im; have++;
+                if (have === 1) start(); else if (live && slot === drawn) drawn = -1;
+              }
+              pump();
+            };
+            im.onload = function () {
+              if (im.decode) im.decode().then(function () { done(true); }, function () { done(true); });
+              else done(true);
+            };
+            im.onerror = function () { done(false); };
+            im.src = 'images/promo/' + ('00' + slot).slice(-3) + '.webp';
+          })(order[next++]);
+        }
+      }
+      pump();
+    }
+
+    function slotFor(frame) {
+      var i = Math.round(frame);
+      if (i < 0) i = 0; else if (i > N - 1) i = N - 1;
+      if (imgs[i]) return i;
+      for (var d = 1; d < N; d++) {
+        if (i + d < N && imgs[i + d]) return i + d;
+        if (i - d >= 0 && imgs[i - d]) return i - d;
+      }
+      return -1;
+    }
+
+    function paint(slot, force) {
+      if (slot < 0 || (slot === drawn && !force)) return;
+      drawn = slot;
+      try { ctx.globalAlpha = 1; ctx.drawImage(imgs[slot], 0, 0, cv.width, cv.height); } catch (e) {}
+    }
+
+    function start() {
+      paint(slotFor(HOME));
+      stage.classList.add('is-live');
+      wake();
+    }
+
+    function angDiff(a, b) {
+      var d = a - b;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      return Math.abs(d);
+    }
+
+    // кадр периметра, чей угол взгляда ближе всего к углу на курсор;
+    // цель не меняем ради пары градусов — иначе дрожит между соседями,
+    // а через шов (другой конец дуги) уходим только при явном выигрыше —
+    // иначе у «влево» белку мотало бы через шов туда-сюда
+    function pick(theta) {
+      var best = goal, bd = 1e9, cost = 1e9;
+      for (var k = 0; k < ARC.length; k++) {
+        var i = ARC[k];
+        if (!imgs[i]) continue;
+        var d = angDiff(ANG[i], theta) + Math.abs(i - cur) * 0.0004;   // чуть предпочитаем соседей
+        if (i === goal) cost = d;
+        if (d < bd) { bd = d; best = i; }
+      }
+      var margin = Math.abs(best - cur) > SEAM ? 0.14 : 0.035;
+      return bd < cost - margin ? best : goal;
+    }
+
+    function crossfade(now) {
+      var t = (now - fade.t0) / fade.dur;
+      if (t >= 1) { paint(fade.b, true); fade = null; return; }
+      if (!imgs[fade.a] || !imgs[fade.b]) { fade = null; return; }
+      try {
+        ctx.globalAlpha = 1; ctx.drawImage(imgs[fade.a], 0, 0, cv.width, cv.height);
+        ctx.globalAlpha = t * t * (3 - 2 * t); ctx.drawImage(imgs[fade.b], 0, 0, cv.width, cv.height);
+        ctx.globalAlpha = 1;
+      } catch (e) {}
+      drawn = -1;
+    }
+
+    function frame(now) {
+      raf = 0;
+      if (!near(300)) { live = false; return; }
+      var dt = lastT ? Math.min(3, (now - lastT) / 16.7) : 1;   // в «тиках» по 60 Гц
+      lastT = now;
+      var ux, uy, ok = true;
+      if (mx === null || coarse) {
+        // курсора ещё не было (или тач): белка неспешно оглядывается сама
+        var t = now / 1000 * 0.35;
+        ux = Math.cos(t); uy = Math.sin(t) * 0.7;
+      } else {
+        // только направление от глаз белки на курсор; дальность не важна
+        var r = stage.getBoundingClientRect();
+        var ex = r.left + r.width * EYE_X, ey = r.top + r.height * EYE_Y;
+        var dx = mx - ex, dy = ey - my;                       // вверх — положительно
+        var len = Math.sqrt(dx * dx + dy * dy);
+        if (len < DEAD) ok = false; else { ux = dx / len; uy = dy / len; }
+      }
+      if (ok) {
+        sx += (ux - sx) * Math.min(1, 0.3 * dt);
+        sy += (uy - sy) * Math.min(1, 0.3 * dt);
+      }
+
+      if (fade) {
+        crossfade(now);
+      } else {
+        if (sx * sx + sy * sy > 0.01) goal = pick(Math.atan2(sy, sx));
+        var ci = Math.round(cur);
+        if (via && (goal < MID) === (via.side < MID)) via = null;   // курсор вернулся — отбой
+        if (!via && Math.abs(goal - cur) > SEAM && ANG[ci] !== undefined
+            && angDiff(ANG[ci], ANG[goal]) < Math.PI / 2) {
+          // цель по углу рядом, а по дуге на другом конце — это шов
+          via = ci < MID ? { hub: HUB_LO, other: HUB_HI, side: ci } : { hub: HUB_HI, other: HUB_LO, side: ci };
+        }
+        if (via && Math.abs(cur - via.hub) < 0.5) {
+          fade = { a: slotFor(via.hub), b: slotFor(via.other), t0: now, dur: 140 };
+          cur = via.other; via = null;
+        } else {
+          var target = via ? via.hub : goal, cap = via ? 3.5 : 4;
+          var d = target - cur;
+          var speed = Math.abs(d) * 0.2;
+          if (speed > cap) speed = cap; else if (speed < 0.6) speed = Math.min(0.6, Math.abs(d));
+          cur += (d < 0 ? -speed : speed) * dt;
+          if (Math.abs(target - cur) < 0.5 || (d < 0) !== (target - cur < 0)) cur = target;
+          paint(slotFor(cur));
+        }
+      }
+      if (media) {
+        px += (sx * 6 - px) * Math.min(1, 0.08 * dt);
+        py += (-sy * 6 - py) * Math.min(1, 0.08 * dt);
+        media.style.transform = 'scale(1.035) translate3d(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px,0)';
+      }
+      if (live) raf = requestAnimationFrame(frame);
+    }
+
+    function wake() {
+      arm();
+      if (!have || live || !near(300)) return;
+      live = true; lastT = 0;
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    document.addEventListener('mousemove', function (e) { mx = e.clientX; my = e.clientY; wake(); }, { passive: true });
+    window.addEventListener('scroll', wake, { passive: true });
+    window.addEventListener('resize', wake);
+    arm();
+    setTimeout(arm, 1200);
+  }
+  promoSquirrel();
 
   /* ------------------------------------------------------------ прелоадер */
   // Показываем минимум 1.4 с (чтобы ёлка успела прорисоваться), максимум 2.8 с —
